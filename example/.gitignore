@@ -44,10 +44,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-
-# cmake
-jpeg-9/CMakeCache.txt
-jpeg-9/CMakeFiles/
-jpeg-9/Makefile
-jpeg-9/cmake_install.cmake
-jpeg-9/liblibjpeg.dylib
