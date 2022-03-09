@@ -1,0 +1,10 @@
+.dart_tool
+.packages
+analysis_options.yaml
+jpeg-9/CMakeCache.txt
+jpeg-9/CMakeFiles/
+jpeg-9/Makefile
+jpeg-9/cmake_install.cmake
+jpeg-9/liblibjpeg.a
+jpeg-9/liblibjpeg.dylib
+lib/
