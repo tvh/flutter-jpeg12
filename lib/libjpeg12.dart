@@ -1,8 +1,10 @@
 library libjpeg12;
 
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:math';
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:ffi/ffi.dart';
 
 import 'package:libjpeg12/generated_bindings.dart';
@@ -101,5 +103,33 @@ class Jpeg12BitImage {
       calloc.free(inbuffer);
       calloc.free(rowptr);
     }
+  }
+
+  Future<Image> toImage() {
+    final completer = Completer<Image>();
+
+    Int32List pixels = Int32List(width * height);
+    final maxVal = data.fold(0, (int x, y) => max(x, y));
+
+    for (var x = 0; x < width; x++) {
+      for (var y = 0; y < height; y++) {
+        int index = y * width + x;
+        final rawValue = data[index];
+        final int val = (rawValue * 255 / maxVal).floor();
+        pixels[index] = Color.fromRGBO(val, val, val, 1).value;
+      }
+    }
+
+    decodeImageFromPixels(
+      pixels.buffer.asUint8List(),
+      width,
+      height,
+      PixelFormat.bgra8888,
+      (Image img) {
+        completer.complete(img);
+      },
+    );
+
+    return completer.future;
   }
 }
