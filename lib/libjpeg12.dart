@@ -2,33 +2,31 @@ library libjpeg12;
 
 import 'dart:async';
 import 'dart:ffi';
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/painting.dart';
 
 import 'package:libjpeg12/generated_bindings.dart';
 
 const NUM_DECODE_ROWS = 16;
 const NUM_BITS = 12;
 
-class Jpeg12BitImage {
+final NativeLibrary _lib = NativeLibrary(Platform.isAndroid
+    ? DynamicLibrary.open('liblibjpeg.so')
+    : DynamicLibrary.process());
+
+class _Jpeg12BitImage {
   final int height;
   final int width;
   final Uint16List data;
   final int minVal;
   final int maxVal;
 
-  static late final NativeLibrary _lib;
-
-  static initialize(NativeLibrary lib) {
-    _lib = lib;
-  }
-
-  Jpeg12BitImage({
+  _Jpeg12BitImage({
     required this.height,
     required this.width,
     required this.data,
@@ -36,7 +34,7 @@ class Jpeg12BitImage {
     required this.maxVal,
   });
 
-  static Jpeg12BitImage decodeImage(Uint8List input) {
+  static _Jpeg12BitImage decodeImage(Uint8List input) {
     Pointer<jpeg12_decompress_struct> cinfo = nullptr;
     Pointer<jpeg12_error_mgr> jerr = nullptr;
     Pointer<JSAMPROW> row_pointer = nullptr;
@@ -100,7 +98,7 @@ class Jpeg12BitImage {
       }
 
       _lib.jpeg12_finish_decompress(cinfo);
-      return Jpeg12BitImage(
+      return _Jpeg12BitImage(
         height: cinfo.ref.image_height,
         width: cinfo.ref.image_width,
         data: res,
@@ -153,7 +151,7 @@ class Jpeg12BitImage {
 }
 
 class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
-  final Jpeg12BitImage image;
+  final _Jpeg12BitImage image;
   int? windowMin;
   int? windowMax;
   ImageStreamCompleter? currentCompleter;
@@ -211,7 +209,7 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   late _Jpeg12ImageProvider _imageProvider;
 
   void setImageProvider() {
-    final Jpeg12BitImage decoded = Jpeg12BitImage.decodeImage(widget.input);
+    final _Jpeg12BitImage decoded = _Jpeg12BitImage.decodeImage(widget.input);
     _imageProvider = _Jpeg12ImageProvider(
       decoded,
       initialWindowMin: widget.windowMin,
