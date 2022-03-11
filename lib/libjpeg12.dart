@@ -119,8 +119,8 @@ class Jpeg12BitImage {
 
   Future<ui.Image> toImage({required int windowMin, required int windowMax}) {
     assert(windowMax > windowMin);
-    assert(windowMin >= 0 && windowMin < 4095);
-    assert(windowMax >= 0 && windowMax < 4095);
+    assert(windowMin >= 0 && windowMin <= 4095);
+    assert(windowMax >= 0 && windowMax <= 4095);
     final windowWidth = windowMax - windowMin;
 
     Int32List pixels = Int32List(width * height);
@@ -130,8 +130,10 @@ class Jpeg12BitImage {
         final int index = rowBegin + x;
         final rawValue = data[index];
         final shiftedVal = rawValue - windowMin;
-        final int val = ((shiftedVal << 8) / windowWidth).floor();
-        pixels[index] = Color.fromRGBO(val, val, val, 1).value;
+        final double val = (shiftedVal << 8) / windowWidth;
+        final valClamped = max(0, min(255, val)).round();
+        pixels[index] =
+            Color.fromRGBO(valClamped, valClamped, valClamped, 1).value;
       }
     }
 
@@ -152,12 +154,14 @@ class Jpeg12BitImage {
 
 class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
   final Jpeg12BitImage image;
-  final int windowMin;
-  final int windowMax;
+  int? windowMin;
+  int? windowMax;
+  ImageStreamCompleter? currentCompleter;
 
-  _Jpeg12ImageProvider(this.image, {int? windowMin, int? windowMax})
-      : windowMin = windowMin ?? image.minVal,
-        windowMax = windowMax ?? image.maxVal;
+  _Jpeg12ImageProvider(this.image,
+      {int? initialWindowMin, int? initialWindowMax})
+      : windowMin = initialWindowMin,
+        windowMax = initialWindowMax;
 
   @override
   Future<_Jpeg12ImageProvider> obtainKey(ImageConfiguration configuration) {
@@ -166,24 +170,25 @@ class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
 
   @override
   ImageStreamCompleter load(_Jpeg12ImageProvider key, DecoderCallback decode) {
-    return OneFrameImageStreamCompleter(
+    currentCompleter = OneFrameImageStreamCompleter(
       image
-          .toImage(windowMin: windowMin, windowMax: windowMax)
+          .toImage(
+              windowMin: windowMin ?? image.minVal,
+              windowMax: windowMax ?? image.maxVal)
           .then((img) => ImageInfo(image: img)),
     );
+    return currentCompleter!;
   }
 
-  @override
-  bool operator ==(Object other) {
-    if (other.runtimeType != runtimeType) return false;
-    return other is _Jpeg12ImageProvider &&
-        other.image == image &&
-        other.windowMin == windowMin &&
-        other.windowMax == windowMax;
+  void setWindow({required int? windowMin, required int? windowMax}) {
+    this.windowMin = windowMin;
+    this.windowMax = windowMax;
+    image
+        .toImage(
+            windowMin: windowMin ?? image.minVal,
+            windowMax: windowMax ?? image.maxVal)
+        .then((img) => currentCompleter!.setImage(ImageInfo(image: img)));
   }
-
-  @override
-  int get hashCode => ui.hashValues(image, windowMin, windowMax);
 }
 
 class Jpeg12BitWidget extends StatefulWidget {
@@ -203,11 +208,20 @@ class Jpeg12BitWidget extends StatefulWidget {
 }
 
 class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
-  late Jpeg12BitImage decoded;
+  late _Jpeg12ImageProvider _imageProvider;
+
+  void setImageProvider() {
+    final Jpeg12BitImage decoded = Jpeg12BitImage.decodeImage(widget.input);
+    _imageProvider = _Jpeg12ImageProvider(
+      decoded,
+      initialWindowMin: widget.windowMin,
+      initialWindowMax: widget.windowMax,
+    );
+  }
 
   @override
   void initState() {
-    decoded = Jpeg12BitImage.decodeImage(widget.input);
+    setImageProvider();
     super.initState();
   }
 
@@ -215,8 +229,14 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   void didUpdateWidget(covariant Jpeg12BitWidget oldWidget) {
     if (oldWidget.input != widget.input) {
       setState(() {
-        decoded = Jpeg12BitImage.decodeImage(widget.input);
+        setImageProvider();
       });
+    } else if (oldWidget.windowMin != widget.windowMin ||
+        oldWidget.windowMax != widget.windowMax) {
+      _imageProvider.setWindow(
+        windowMin: widget.windowMin,
+        windowMax: widget.windowMax,
+      );
     }
     super.didUpdateWidget(oldWidget);
   }
@@ -224,11 +244,7 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   @override
   Widget build(BuildContext context) {
     return Image(
-      image: _Jpeg12ImageProvider(
-        decoded,
-        windowMin: widget.windowMin,
-        windowMax: widget.windowMax,
-      ),
+      image: _imageProvider,
       filterQuality: ui.FilterQuality.high,
     );
   }
