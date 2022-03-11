@@ -23,6 +23,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   Uint8List? img;
+  int windowMin = 0;
+  int windowMax = 4095;
 
   void _doLoad() async {
     final bytes =
@@ -42,10 +44,30 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
         home: Scaffold(
-      appBar: AppBar(
-        title: const Text('Plugin example app'),
-      ),
-      body: img != null ? Jpeg12BitWidget(input: img!) : null,
-    ));
+            appBar: AppBar(
+              title: const Text('Plugin example app'),
+            ),
+            body: Column(
+              children: [
+                if (img != null)
+                  Jpeg12BitWidget(
+                    input: img!,
+                    windowMin: windowMin,
+                    windowMax: windowMax,
+                  ),
+                RangeSlider(
+                  values:
+                      RangeValues(windowMin.toDouble(), windowMax.toDouble()),
+                  onChanged: (values) {
+                    setState(() {
+                      windowMin = values.start.floor();
+                      windowMax = values.end.ceil();
+                    });
+                  },
+                  min: 0,
+                  max: 4095,
+                ),
+              ],
+            )));
   }
 }
