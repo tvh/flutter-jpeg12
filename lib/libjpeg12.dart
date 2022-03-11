@@ -4,8 +4,11 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:math';
 import 'dart:typed_data';
-import 'dart:ui';
+import 'dart:ui' as ui;
 import 'package:ffi/ffi.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/painting.dart';
 
 import 'package:libjpeg12/generated_bindings.dart';
 
@@ -16,6 +19,8 @@ class Jpeg12BitImage {
   final int height;
   final int width;
   final Uint16List data;
+  final int minVal;
+  final int maxVal;
 
   static late final NativeLibrary _lib;
 
@@ -23,8 +28,13 @@ class Jpeg12BitImage {
     _lib = lib;
   }
 
-  Jpeg12BitImage(
-      {required this.height, required this.width, required this.data});
+  Jpeg12BitImage({
+    required this.height,
+    required this.width,
+    required this.data,
+    required this.minVal,
+    required this.maxVal,
+  });
 
   static Jpeg12BitImage decodeImage(Uint8List input) {
     Pointer<jpeg12_decompress_struct> cinfo = nullptr;
@@ -94,6 +104,8 @@ class Jpeg12BitImage {
         height: cinfo.ref.image_height,
         width: cinfo.ref.image_width,
         data: res,
+        minVal: minVal,
+        maxVal: maxVal,
       );
     } finally {
       _lib.jpeg12_destroy_decompress(cinfo);
@@ -105,31 +117,119 @@ class Jpeg12BitImage {
     }
   }
 
-  Future<Image> toImage() {
-    final completer = Completer<Image>();
+  Future<ui.Image> toImage({required int windowMin, required int windowMax}) {
+    assert(windowMax > windowMin);
+    assert(windowMin >= 0 && windowMin < 4095);
+    assert(windowMax >= 0 && windowMax < 4095);
+    final windowWidth = windowMax - windowMin;
 
     Int32List pixels = Int32List(width * height);
-    final maxVal = data.fold(0, (int x, y) => max(x, y));
-
-    for (var x = 0; x < width; x++) {
-      for (var y = 0; y < height; y++) {
-        int index = y * width + x;
+    for (var y = 0; y < height; y++) {
+      final rowBegin = y * width;
+      for (var x = 0; x < width; x++) {
+        final int index = rowBegin + x;
         final rawValue = data[index];
-        final int val = (rawValue * 255 / maxVal).floor();
+        final shiftedVal = rawValue - windowMin;
+        final int val = ((shiftedVal << 8) / windowWidth).floor();
         pixels[index] = Color.fromRGBO(val, val, val, 1).value;
       }
     }
 
-    decodeImageFromPixels(
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(
       pixels.buffer.asUint8List(),
       width,
       height,
-      PixelFormat.bgra8888,
-      (Image img) {
+      ui.PixelFormat.bgra8888,
+      (ui.Image img) {
         completer.complete(img);
       },
     );
 
     return completer.future;
+  }
+}
+
+class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
+  final Jpeg12BitImage image;
+  final int windowMin;
+  final int windowMax;
+
+  _Jpeg12ImageProvider(this.image, {int? windowMin, int? windowMax})
+      : windowMin = windowMin ?? image.minVal,
+        windowMax = windowMax ?? image.maxVal;
+
+  @override
+  Future<_Jpeg12ImageProvider> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<_Jpeg12ImageProvider>(this);
+  }
+
+  @override
+  ImageStreamCompleter load(_Jpeg12ImageProvider key, DecoderCallback decode) {
+    return OneFrameImageStreamCompleter(
+      image
+          .toImage(windowMin: windowMin, windowMax: windowMax)
+          .then((img) => ImageInfo(image: img)),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other.runtimeType != runtimeType) return false;
+    return other is _Jpeg12ImageProvider &&
+        other.image == image &&
+        other.windowMin == windowMin &&
+        other.windowMax == windowMax;
+  }
+
+  @override
+  int get hashCode => ui.hashValues(image, windowMin, windowMax);
+}
+
+class Jpeg12BitWidget extends StatefulWidget {
+  final Uint8List input;
+  final int? windowMin;
+  final int? windowMax;
+
+  const Jpeg12BitWidget({
+    Key? key,
+    required this.input,
+    this.windowMin,
+    this.windowMax,
+  }) : super(key: key);
+
+  @override
+  State<Jpeg12BitWidget> createState() => _Jpeg12BitWidgetState();
+}
+
+class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
+  late Jpeg12BitImage decoded;
+
+  @override
+  void initState() {
+    decoded = Jpeg12BitImage.decodeImage(widget.input);
+    super.initState();
+  }
+
+  @override
+  void didUpdateWidget(covariant Jpeg12BitWidget oldWidget) {
+    if (oldWidget.input != widget.input) {
+      setState(() {
+        decoded = Jpeg12BitImage.decodeImage(widget.input);
+      });
+    }
+    super.didUpdateWidget(oldWidget);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Image(
+      image: _Jpeg12ImageProvider(
+        decoded,
+        windowMin: widget.windowMin,
+        windowMax: widget.windowMax,
+      ),
+      filterQuality: ui.FilterQuality.high,
+    );
   }
 }

@@ -47,7 +47,7 @@ android {
     externalNativeBuild {
         cmake {
             version "3.18.1"
-            path "../jpeg-9/CMakeLists.txt"
+            path "../ios/jpeg-9/CMakeLists.txt"
         }
     }
 }

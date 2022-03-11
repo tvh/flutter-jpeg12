@@ -27,11 +27,8 @@ class _MyAppState extends State<MyApp> {
   void _doLoad() async {
     final bytes =
         await rootBundle.load('MR-MONO2-12-shoulder_reference_small.jpg');
-    final imgRaw = Jpeg12BitImage.decodeImage(bytes.buffer.asUint8List());
-    final img = await imgRaw.toImage();
-    final imgData = await img.toByteData(format: ui.ImageByteFormat.png);
     this.setState(() {
-      this.img = Uint8List.view(imgData!.buffer);
+      this.img = bytes.buffer.asUint8List();
     });
   }
 
@@ -48,7 +45,7 @@ class _MyAppState extends State<MyApp> {
       appBar: AppBar(
         title: const Text('Plugin example app'),
       ),
-      body: img != null ? Image(image: MemoryImage(img!)) : null,
+      body: img != null ? Jpeg12BitWidget(input: img!) : null,
     ));
   }
 }
