@@ -22,6 +22,8 @@ flutter:
       android:
         package: com.example.libjpeg12
         pluginClass: Libjpeg12Plugin
+      ios:
+        pluginClass: Libjpeg12Plugin
 
 ffigen:
   output: 'lib/generated_bindings.dart'
