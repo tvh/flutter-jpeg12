@@ -19,22 +19,22 @@ final Jpeg12Native _lib = Jpeg12Native(Platform.isAndroid
     ? DynamicLibrary.open('liblibjpeg.so')
     : DynamicLibrary.process());
 
-class _Jpeg12BitImage {
+class Jpeg12BitImage {
   final int height;
   final int width;
-  final Uint32List data;
+  final Uint32List _data;
   final int minVal;
   final int maxVal;
 
-  _Jpeg12BitImage({
+  Jpeg12BitImage._({
     required this.height,
     required this.width,
-    required this.data,
+    required Uint32List data,
     required this.minVal,
     required this.maxVal,
-  });
+  }) : _data = data;
 
-  static _Jpeg12BitImage decodeImage(Uint8List input) {
+  static Jpeg12BitImage decode(Uint8List input) {
     Pointer<jpeg12_decompress_struct> cinfo = nullptr;
     Pointer<jpeg12_error_mgr> jerr = nullptr;
     Pointer<JSAMPROW> row_pointer = nullptr;
@@ -98,7 +98,7 @@ class _Jpeg12BitImage {
       }
 
       _lib.jpeg12_finish_decompress(cinfo);
-      return _Jpeg12BitImage(
+      return Jpeg12BitImage._(
         height: cinfo.ref.image_height,
         width: cinfo.ref.image_width,
         data: res,
@@ -115,10 +115,10 @@ class _Jpeg12BitImage {
     }
   }
 
-  Future<ui.Image> toImage() {
+  Future<ui.Image> _toImage() {
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      data.buffer.asUint8List(),
+      _data.buffer.asUint8List(),
       width,
       height,
       ui.PixelFormat.bgra8888, // RGBA in Big-endian
@@ -132,7 +132,7 @@ class _Jpeg12BitImage {
 }
 
 class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
-  final _Jpeg12BitImage image;
+  final Jpeg12BitImage image;
 
   _Jpeg12ImageProvider(this.image);
 
@@ -144,7 +144,7 @@ class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
   @override
   ImageStreamCompleter load(_Jpeg12ImageProvider key, DecoderCallback decode) {
     return OneFrameImageStreamCompleter(
-      image.toImage().then((img) => ImageInfo(image: img)),
+      image._toImage().then((img) => ImageInfo(image: img)),
     );
   }
 
@@ -161,12 +161,36 @@ class Jpeg12BitWidget extends StatefulWidget {
   final Uint8List input;
   final int? windowMin;
   final int? windowMax;
+  final String? semanticLabel;
+  final bool excludeFromSemantics;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+  final Alignment alignment;
+  final ImageRepeat repeat;
+  final Rect? centerSlice;
+  final bool matchTextDirection;
+  final bool gaplessPlayback;
+  final bool isAntiAlias;
+  final ui.FilterQuality filterQuality;
 
   const Jpeg12BitWidget({
     Key? key,
     required this.input,
     this.windowMin,
     this.windowMax,
+    this.semanticLabel,
+    this.excludeFromSemantics = false,
+    this.width,
+    this.height,
+    this.fit,
+    this.alignment = Alignment.center,
+    this.repeat = ImageRepeat.noRepeat,
+    this.centerSlice,
+    this.matchTextDirection = false,
+    this.gaplessPlayback = false,
+    this.isAntiAlias = false,
+    this.filterQuality = FilterQuality.low,
   }) : super(key: key);
 
   @override
@@ -177,7 +201,7 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   late _Jpeg12ImageProvider _imageProvider;
 
   void setImageProvider() {
-    final _Jpeg12BitImage decoded = _Jpeg12BitImage.decodeImage(widget.input);
+    final Jpeg12BitImage decoded = Jpeg12BitImage.decode(widget.input);
     _imageProvider = _Jpeg12ImageProvider(decoded);
   }
 
@@ -218,7 +242,18 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
         ]),
         child: Image(
           image: _imageProvider,
-          filterQuality: ui.FilterQuality.high,
+          semanticLabel: widget.semanticLabel,
+          excludeFromSemantics: widget.excludeFromSemantics,
+          width: widget.width,
+          height: widget.height,
+          fit: widget.fit,
+          alignment: widget.alignment,
+          repeat: widget.repeat,
+          centerSlice: widget.centerSlice,
+          matchTextDirection: widget.matchTextDirection,
+          gaplessPlayback: widget.gaplessPlayback,
+          isAntiAlias: widget.isAntiAlias,
+          filterQuality: widget.filterQuality,
         ));
   }
 }
