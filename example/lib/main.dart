@@ -15,8 +15,8 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   Uint8List? img;
-  int windowMin = 0;
-  int windowMax = 4095;
+  double windowMin = 0;
+  double windowMax = 4095;
 
   void _doLoad() async {
     final bytes =
@@ -52,8 +52,8 @@ class _MyAppState extends State<MyApp> {
                       RangeValues(windowMin.toDouble(), windowMax.toDouble()),
                   onChanged: (values) {
                     setState(() {
-                      windowMin = values.start.floor();
-                      windowMax = values.end.ceil();
+                      windowMin = values.start;
+                      windowMax = values.end;
                     });
                   },
                   min: 0,

@@ -159,8 +159,8 @@ class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
 
 class Jpeg12BitWidget extends StatefulWidget {
   final Uint8List input;
-  final int? windowMin;
-  final int? windowMax;
+  final double? windowMin;
+  final double? windowMax;
   final String? semanticLabel;
   final bool excludeFromSemantics;
   final double? width;
@@ -171,8 +171,6 @@ class Jpeg12BitWidget extends StatefulWidget {
   final Rect? centerSlice;
   final bool matchTextDirection;
   final bool gaplessPlayback;
-  final bool isAntiAlias;
-  final ui.FilterQuality filterQuality;
 
   const Jpeg12BitWidget({
     Key? key,
@@ -189,8 +187,6 @@ class Jpeg12BitWidget extends StatefulWidget {
     this.centerSlice,
     this.matchTextDirection = false,
     this.gaplessPlayback = false,
-    this.isAntiAlias = false,
-    this.filterQuality = FilterQuality.low,
   }) : super(key: key);
 
   @override
@@ -224,14 +220,15 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   @override
   Widget build(BuildContext context) {
     final windowMax = widget.windowMax ?? _imageProvider.image.maxVal;
-    final windowMin = widget.windowMin ?? _imageProvider.image.minVal;
-    final x = 255 / (windowMax - windowMin);
+    final windowLevel = widget.windowMin ?? _imageProvider.image.minVal;
+    final windowWidth = windowMax - windowLevel;
+    final scaleFactor = 255 / windowWidth;
     final List<double> selector = [
       0,
-      x * 256,
-      x,
+      scaleFactor * 256,
+      scaleFactor,
       0,
-      -(x * windowMin.toDouble())
+      -(scaleFactor * windowLevel)
     ];
     return ColorFiltered(
         colorFilter: ColorFilter.matrix([
@@ -242,6 +239,10 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
         ]),
         child: Image(
           image: _imageProvider,
+          // Setting filterQuality to none here is important.
+          // The color values are not actually correct yet before applying the
+          // [ColorFilter.matrix].
+          filterQuality: ui.FilterQuality.none,
           semanticLabel: widget.semanticLabel,
           excludeFromSemantics: widget.excludeFromSemantics,
           width: widget.width,
@@ -252,8 +253,6 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
           centerSlice: widget.centerSlice,
           matchTextDirection: widget.matchTextDirection,
           gaplessPlayback: widget.gaplessPlayback,
-          isAntiAlias: widget.isAntiAlias,
-          filterQuality: widget.filterQuality,
         ));
   }
 }
