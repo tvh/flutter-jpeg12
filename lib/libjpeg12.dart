@@ -22,7 +22,7 @@ final NativeLibrary _lib = NativeLibrary(Platform.isAndroid
 class _Jpeg12BitImage {
   final int height;
   final int width;
-  final Uint16List data;
+  final Uint32List data;
   final int minVal;
   final int maxVal;
 
@@ -71,7 +71,7 @@ class _Jpeg12BitImage {
       _lib.jpeg12_start_decompress(cinfo);
 
       int numPixels = cinfo.ref.output_width * cinfo.ref.output_height;
-      final res = Uint16List(numPixels);
+      final res = Uint32List(numPixels);
       final rowsize = cinfo.ref.output_width * sizeOf<JSAMPLE>();
       rowptr = calloc.allocate(rowsize * NUM_DECODE_ROWS);
       for (int i = 0; i < NUM_DECODE_ROWS; i++) {
@@ -92,7 +92,7 @@ class _Jpeg12BitImage {
             int x = row_pointer[i][j];
             minVal = min(minVal, x);
             maxVal = max(maxVal, x);
-            res[p] = x;
+            res[p] = Color.fromRGBO(0, x >> 8, x, 1).value;
           }
         }
       }
@@ -115,32 +115,13 @@ class _Jpeg12BitImage {
     }
   }
 
-  Future<ui.Image> toImage({required int windowMin, required int windowMax}) {
-    assert(windowMax > windowMin);
-    assert(windowMin >= 0 && windowMin <= 4095);
-    assert(windowMax >= 0 && windowMax <= 4095);
-    final windowWidth = windowMax - windowMin;
-
-    Int32List pixels = Int32List(width * height);
-    for (var y = 0; y < height; y++) {
-      final rowBegin = y * width;
-      for (var x = 0; x < width; x++) {
-        final int index = rowBegin + x;
-        final rawValue = data[index];
-        final shiftedVal = rawValue - windowMin;
-        final double val = (shiftedVal << 8) / windowWidth;
-        final valClamped = max(0, min(255, val)).round();
-        pixels[index] =
-            Color.fromRGBO(valClamped, valClamped, valClamped, 1).value;
-      }
-    }
-
+  Future<ui.Image> toImage() {
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
-      pixels.buffer.asUint8List(),
+      data.buffer.asUint8List(),
       width,
       height,
-      ui.PixelFormat.bgra8888,
+      ui.PixelFormat.bgra8888, // RGBA in Big-endian
       (ui.Image img) {
         completer.complete(img);
       },
@@ -152,14 +133,8 @@ class _Jpeg12BitImage {
 
 class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
   final _Jpeg12BitImage image;
-  int? windowMin;
-  int? windowMax;
-  ImageStreamCompleter? currentCompleter;
 
-  _Jpeg12ImageProvider(this.image,
-      {int? initialWindowMin, int? initialWindowMax})
-      : windowMin = initialWindowMin,
-        windowMax = initialWindowMax;
+  _Jpeg12ImageProvider(this.image);
 
   @override
   Future<_Jpeg12ImageProvider> obtainKey(ImageConfiguration configuration) {
@@ -168,25 +143,18 @@ class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
 
   @override
   ImageStreamCompleter load(_Jpeg12ImageProvider key, DecoderCallback decode) {
-    currentCompleter = OneFrameImageStreamCompleter(
-      image
-          .toImage(
-              windowMin: windowMin ?? image.minVal,
-              windowMax: windowMax ?? image.maxVal)
-          .then((img) => ImageInfo(image: img)),
+    return OneFrameImageStreamCompleter(
+      image.toImage().then((img) => ImageInfo(image: img)),
     );
-    return currentCompleter!;
   }
 
-  void setWindow({required int? windowMin, required int? windowMax}) {
-    this.windowMin = windowMin;
-    this.windowMax = windowMax;
-    image
-        .toImage(
-            windowMin: windowMin ?? image.minVal,
-            windowMax: windowMax ?? image.maxVal)
-        .then((img) => currentCompleter!.setImage(ImageInfo(image: img)));
+  @override
+  operator ==(Object other) {
+    return other is _Jpeg12ImageProvider && other.image == image;
   }
+
+  @override
+  int get hashCode => image.hashCode;
 }
 
 class Jpeg12BitWidget extends StatefulWidget {
@@ -210,11 +178,7 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
 
   void setImageProvider() {
     final _Jpeg12BitImage decoded = _Jpeg12BitImage.decodeImage(widget.input);
-    _imageProvider = _Jpeg12ImageProvider(
-      decoded,
-      initialWindowMin: widget.windowMin,
-      initialWindowMax: widget.windowMax,
-    );
+    _imageProvider = _Jpeg12ImageProvider(decoded);
   }
 
   @override
@@ -229,21 +193,32 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
       setState(() {
         setImageProvider();
       });
-    } else if (oldWidget.windowMin != widget.windowMin ||
-        oldWidget.windowMax != widget.windowMax) {
-      _imageProvider.setWindow(
-        windowMin: widget.windowMin,
-        windowMax: widget.windowMax,
-      );
     }
     super.didUpdateWidget(oldWidget);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Image(
-      image: _imageProvider,
-      filterQuality: ui.FilterQuality.high,
-    );
+    final windowMax = widget.windowMax ?? _imageProvider.image.maxVal;
+    final windowMin = widget.windowMin ?? _imageProvider.image.minVal;
+    final x = 255 / (windowMax - windowMin);
+    final List<double> selector = [
+      0,
+      x * 256,
+      x,
+      0,
+      -(x * windowMin.toDouble())
+    ];
+    return ColorFiltered(
+        colorFilter: ColorFilter.matrix([
+          ...selector,
+          ...selector,
+          ...selector,
+          ...[0, 0, 0, 0, 255],
+        ]),
+        child: Image(
+          image: _imageProvider,
+          filterQuality: ui.FilterQuality.high,
+        ));
   }
 }
