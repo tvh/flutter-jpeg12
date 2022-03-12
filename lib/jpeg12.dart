@@ -10,12 +10,12 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:libjpeg12/generated_bindings.dart';
+import 'package:jpeg12/generated_bindings.dart';
 
 const NUM_DECODE_ROWS = 16;
 const NUM_BITS = 12;
 
-final NativeLibrary _lib = NativeLibrary(Platform.isAndroid
+final Jpeg12Native _lib = Jpeg12Native(Platform.isAndroid
     ? DynamicLibrary.open('liblibjpeg.so')
     : DynamicLibrary.process());
 

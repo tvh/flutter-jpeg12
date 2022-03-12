@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.example.libjpeg12_example">
+    package="com.example.jpeg12_example">
    <application
-        android:label="libjpeg12_example"
+        android:label="jpeg12_example"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

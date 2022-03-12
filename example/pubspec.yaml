@@ -1,5 +1,5 @@
-name: libjpeg12_example
-description: Demonstrates how to use the libjpeg12 plugin.
+name: jpeg12_example
+description: Demonstrates how to use the jpeg12 plugin.
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  libjpeg12:
+  jpeg12:
     path: ../
 
   cupertino_icons: ^1.0.2

@@ -2,7 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:libjpeg12/libjpeg12.dart';
+import 'package:jpeg12/jpeg12.dart';
 
 void main() {
   runApp(MyApp());

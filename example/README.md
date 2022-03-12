@@ -1,6 +1,6 @@
-# libjpeg12_example
+# jpeg12_example
 
-Demonstrates how to use the libjpeg12 plugin.
+Demonstrates how to use the jpeg12 plugin.
 
 ## Getting Started
 

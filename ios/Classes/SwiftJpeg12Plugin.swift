@@ -1,10 +1,10 @@
 import Flutter
 import UIKit
 
-public class SwiftLibjpeg12Plugin: NSObject, FlutterPlugin {
+public class SwiftJpeg12Plugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
-    let channel = FlutterMethodChannel(name: "libjpeg12", binaryMessenger: registrar.messenger())
-    let instance = SwiftLibjpeg12Plugin()
+    let channel = FlutterMethodChannel(name: "jpeg12", binaryMessenger: registrar.messenger())
+    let instance = SwiftJpeg12Plugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
   }
 

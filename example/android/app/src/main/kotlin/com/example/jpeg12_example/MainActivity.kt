@@ -1,4 +1,4 @@
-package com.example.libjpeg12_example
+package com.example.jpeg12_example
 
 import io.flutter.embedding.android.FlutterActivity
 
