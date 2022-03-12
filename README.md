@@ -2,8 +2,7 @@
 
 This plugin can load and display 12 bit JPEG-images. It also supports windowing.
 
-<img src="Screenshot1.png" alt="drawing" width="300"/>
-<img src="Screenshot2.png" alt="drawing" width="300"/>
+<table><tr><td><img src="Screenshot1.png" alt="drawing" width="300"/></td><td><img src="Screenshot2.png" alt="drawing" width="300"/></td></table>
 
 ## Usage
 
