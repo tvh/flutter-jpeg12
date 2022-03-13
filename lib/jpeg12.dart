@@ -185,14 +185,6 @@ class Jpeg12BitWidget extends StatefulWidget {
   final double? windowMax;
   final String? semanticLabel;
   final bool excludeFromSemantics;
-  final double? width;
-  final double? height;
-  final BoxFit? fit;
-  final Alignment alignment;
-  final ImageRepeat repeat;
-  final Rect? centerSlice;
-  final bool matchTextDirection;
-  final bool gaplessPlayback;
 
   const Jpeg12BitWidget({
     Key? key,
@@ -201,14 +193,6 @@ class Jpeg12BitWidget extends StatefulWidget {
     this.windowMax,
     this.semanticLabel,
     this.excludeFromSemantics = false,
-    this.width,
-    this.height,
-    this.fit,
-    this.alignment = Alignment.center,
-    this.repeat = ImageRepeat.noRepeat,
-    this.centerSlice,
-    this.matchTextDirection = false,
-    this.gaplessPlayback = false,
   }) : super(key: key);
 
   @override
@@ -246,24 +230,30 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
     final double windowMin =
         widget.windowMin ?? _imageProvider.image.minVal.toDouble();
     final colorFilter = Jpeg12BitImage._filterForWindow(windowMin, windowMax);
-    return ColorFiltered(
-        colorFilter: colorFilter,
-        child: Image(
-          image: _imageProvider,
-          // Setting filterQuality to none here is important.
-          // The color values are not actually correct yet before applying the
-          // [ColorFilter.matrix].
-          filterQuality: ui.FilterQuality.none,
-          semanticLabel: widget.semanticLabel,
-          excludeFromSemantics: widget.excludeFromSemantics,
-          width: widget.width,
-          height: widget.height,
-          fit: widget.fit,
-          alignment: widget.alignment,
-          repeat: widget.repeat,
-          centerSlice: widget.centerSlice,
-          matchTextDirection: widget.matchTextDirection,
-          gaplessPlayback: widget.gaplessPlayback,
-        ));
+    final origWidth = _imageProvider.image.width.toDouble();
+    final origHeight = _imageProvider.image.height.toDouble();
+    final imageInOrigSize = ColorFiltered(
+      colorFilter: colorFilter,
+      child: Image(
+        image: _imageProvider,
+        // Setting filterQuality to none here is important.
+        // The color values are not actually correct yet before applying the
+        // [ColorFilter.matrix].
+        filterQuality: ui.FilterQuality.none,
+        // Set the image size to be exactly that of underlying image.
+        // The scaling is done _outside_ the [RepaintBoundary] so the
+        // colorFilter doesn't break.
+        width: origWidth,
+        height: origHeight,
+        semanticLabel: widget.semanticLabel,
+        excludeFromSemantics: widget.excludeFromSemantics,
+      ),
+    );
+    return AspectRatio(
+      aspectRatio: origWidth / origHeight,
+      child: FittedBox(
+        child: imageInOrigSize,
+      ),
+    );
   }
 }
