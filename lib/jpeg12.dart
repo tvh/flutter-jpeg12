@@ -185,6 +185,9 @@ class Jpeg12BitWidget extends StatefulWidget {
   final double? windowMax;
   final String? semanticLabel;
   final bool excludeFromSemantics;
+  final BoxFit fit;
+  final AlignmentGeometry alignment;
+  final Clip clipBehavior;
 
   const Jpeg12BitWidget({
     Key? key,
@@ -193,6 +196,9 @@ class Jpeg12BitWidget extends StatefulWidget {
     this.windowMax,
     this.semanticLabel,
     this.excludeFromSemantics = false,
+    this.fit = BoxFit.contain,
+    this.alignment = Alignment.center,
+    this.clipBehavior = Clip.none,
   }) : super(key: key);
 
   @override
@@ -241,7 +247,7 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
         // [ColorFilter.matrix].
         filterQuality: ui.FilterQuality.none,
         // Set the image size to be exactly that of underlying image.
-        // The scaling is done _outside_ the [RepaintBoundary] so the
+        // The scaling is done _outside_ using [FittedBox] so that the
         // colorFilter doesn't break.
         width: origWidth,
         height: origHeight,
@@ -249,11 +255,11 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
         excludeFromSemantics: widget.excludeFromSemantics,
       ),
     );
-    return AspectRatio(
-      aspectRatio: origWidth / origHeight,
-      child: FittedBox(
-        child: imageInOrigSize,
-      ),
+    return FittedBox(
+      child: imageInOrigSize,
+      fit: widget.fit,
+      alignment: widget.alignment,
+      clipBehavior: widget.clipBehavior,
     );
   }
 }
