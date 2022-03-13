@@ -213,6 +213,7 @@ class Jpeg12BitWidget extends StatefulWidget {
   final ImageRepeat repeat;
   final Rect? centerSlice;
   final bool matchTextDirection;
+  final FilterQuality filterQuality;
 
   const Jpeg12BitWidget({
     Key? key,
@@ -228,6 +229,7 @@ class Jpeg12BitWidget extends StatefulWidget {
     this.repeat = ImageRepeat.noRepeat,
     this.centerSlice,
     this.matchTextDirection = false,
+    this.filterQuality = ui.FilterQuality.high,
   }) : super(key: key);
 
   @override
@@ -266,7 +268,7 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
       // Set this here so that scrolling through different windowing values
       // doesn't cut out the display.
       gaplessPlayback: true,
-      filterQuality: ui.FilterQuality.none,
+      filterQuality: widget.filterQuality,
       semanticLabel: widget.semanticLabel,
       excludeFromSemantics: widget.excludeFromSemantics,
       width: widget.width,
