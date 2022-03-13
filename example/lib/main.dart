@@ -35,31 +35,32 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-        home: Scaffold(
-            appBar: AppBar(
-              title: const Text('Plugin example app'),
+      home: Scaffold(
+        appBar: AppBar(
+          title: const Text('Plugin example app'),
+        ),
+        body: Column(
+          children: [
+            if (img != null)
+              Jpeg12BitWidget(
+                input: img!,
+                windowMin: windowMin,
+                windowMax: windowMax,
+              ),
+            RangeSlider(
+              values: RangeValues(windowMin.toDouble(), windowMax.toDouble()),
+              onChanged: (values) {
+                setState(() {
+                  windowMin = values.start;
+                  windowMax = values.end;
+                });
+              },
+              min: 0,
+              max: 4095,
             ),
-            body: Column(
-              children: [
-                if (img != null)
-                  Jpeg12BitWidget(
-                    input: img!,
-                    windowMin: windowMin,
-                    windowMax: windowMax,
-                  ),
-                RangeSlider(
-                  values:
-                      RangeValues(windowMin.toDouble(), windowMax.toDouble()),
-                  onChanged: (values) {
-                    setState(() {
-                      windowMin = values.start;
-                      windowMax = values.end;
-                    });
-                  },
-                  min: 0,
-                  max: 4095,
-                ),
-              ],
-            )));
+          ],
+        ),
+      ),
+    );
   }
 }

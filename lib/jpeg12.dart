@@ -115,6 +115,28 @@ class Jpeg12BitImage {
     }
   }
 
+  /// Use this filter to get the final image.
+  static ui.ColorFilter _filterForWindow(double windowMin, double windowMax) {
+    final windowWidth = windowMax - windowMin;
+    final scaleFactor = 255 / windowWidth;
+    final List<double> selector = [
+      0,
+      scaleFactor * 256,
+      scaleFactor,
+      0,
+      -(scaleFactor * windowMin)
+    ];
+    return ColorFilter.matrix([
+      ...selector,
+      ...selector,
+      ...selector,
+      ...[0, 0, 0, 0, 255],
+    ]);
+  }
+
+  /// Returns the buffer as as [ui.Image]. This image needs to be combined with
+  /// the [ui.ColorFilter] from [_filterForWindow] _without_ scaling (or with
+  /// [FilterQuality.none]).
   Future<ui.Image> _toImage() {
     final completer = Completer<ui.Image>();
     ui.decodeImageFromPixels(
@@ -219,24 +241,13 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final windowMax = widget.windowMax ?? _imageProvider.image.maxVal;
-    final windowLevel = widget.windowMin ?? _imageProvider.image.minVal;
-    final windowWidth = windowMax - windowLevel;
-    final scaleFactor = 255 / windowWidth;
-    final List<double> selector = [
-      0,
-      scaleFactor * 256,
-      scaleFactor,
-      0,
-      -(scaleFactor * windowLevel)
-    ];
+    final double windowMax =
+        widget.windowMax ?? _imageProvider.image.maxVal.toDouble();
+    final double windowMin =
+        widget.windowMin ?? _imageProvider.image.minVal.toDouble();
+    final colorFilter = Jpeg12BitImage._filterForWindow(windowMin, windowMax);
     return ColorFiltered(
-        colorFilter: ColorFilter.matrix([
-          ...selector,
-          ...selector,
-          ...selector,
-          ...[0, 0, 0, 0, 255],
-        ]),
+        colorFilter: colorFilter,
         child: Image(
           image: _imageProvider,
           // Setting filterQuality to none here is important.
