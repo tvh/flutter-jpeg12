@@ -47,6 +47,7 @@ class _MyAppState extends State<MyApp> {
                 input: img!,
                 windowMin: windowMin,
                 windowMax: windowMax,
+                fit: BoxFit.fill,
               ),
             RangeSlider(
               values: RangeValues(windowMin.toDouble(), windowMax.toDouble()),

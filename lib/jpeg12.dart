@@ -22,14 +22,19 @@ final Jpeg12Native _lib = Jpeg12Native(Platform.isAndroid
 class Jpeg12BitImage {
   final int height;
   final int width;
-  final Uint32List _data;
+
+  /// The buffer as as [ui.Image]. This image needs to be combined with
+  /// the [ui.ColorFilter] from [_filterForWindow] _without_ scaling (or with
+  /// [FilterQuality.none]).
+  final Future<ui.Image> _data;
+
   final int minVal;
   final int maxVal;
 
   Jpeg12BitImage._({
     required this.height,
     required this.width,
-    required Uint32List data,
+    required Future<ui.Image> data,
     required this.minVal,
     required this.maxVal,
   }) : _data = data;
@@ -98,10 +103,20 @@ class Jpeg12BitImage {
       }
 
       _lib.jpeg12_finish_decompress(cinfo);
+      final imageCompleter = Completer<ui.Image>();
+      ui.decodeImageFromPixels(
+        res.buffer.asUint8List(),
+        cinfo.ref.image_width,
+        cinfo.ref.image_height,
+        ui.PixelFormat.bgra8888, // RGBA in Big-endian
+        (ui.Image img) {
+          imageCompleter.complete(img);
+        },
+      );
       return Jpeg12BitImage._(
         height: cinfo.ref.image_height,
         width: cinfo.ref.image_width,
-        data: res,
+        data: imageCompleter.future,
         minVal: minVal,
         maxVal: maxVal,
       );
@@ -134,45 +149,51 @@ class Jpeg12BitImage {
     ]);
   }
 
-  /// Returns the buffer as as [ui.Image]. This image needs to be combined with
-  /// the [ui.ColorFilter] from [_filterForWindow] _without_ scaling (or with
-  /// [FilterQuality.none]).
-  Future<ui.Image> _toImage() {
-    final completer = Completer<ui.Image>();
-    ui.decodeImageFromPixels(
-      _data.buffer.asUint8List(),
-      width,
-      height,
-      ui.PixelFormat.bgra8888, // RGBA in Big-endian
-      (ui.Image img) {
-        completer.complete(img);
-      },
-    );
-
-    return completer.future;
+  Future<void> drawToCanvas(
+      ui.Canvas canvas, double windowMin, double windowMax) async {
+    final paint = Paint()
+      ..colorFilter = Jpeg12BitImage._filterForWindow(windowMin, windowMax)
+      ..filterQuality = ui.FilterQuality.none;
+    canvas.drawImage(await _data, Offset.zero, paint);
   }
 }
 
-class _Jpeg12ImageProvider extends ImageProvider<_Jpeg12ImageProvider> {
+class Jpeg12ImageProvider extends ImageProvider<Jpeg12ImageProvider> {
   final Jpeg12BitImage image;
+  final double windowMin;
+  final double windowMax;
 
-  _Jpeg12ImageProvider(this.image);
+  Jpeg12ImageProvider({
+    required this.image,
+    required this.windowMin,
+    required this.windowMax,
+  });
 
   @override
-  Future<_Jpeg12ImageProvider> obtainKey(ImageConfiguration configuration) {
-    return SynchronousFuture<_Jpeg12ImageProvider>(this);
+  Future<Jpeg12ImageProvider> obtainKey(ImageConfiguration configuration) {
+    return SynchronousFuture<Jpeg12ImageProvider>(this);
   }
 
   @override
-  ImageStreamCompleter load(_Jpeg12ImageProvider key, DecoderCallback decode) {
-    return OneFrameImageStreamCompleter(
-      image._toImage().then((img) => ImageInfo(image: img)),
-    );
+  ImageStreamCompleter load(Jpeg12ImageProvider key, DecoderCallback decode) {
+    return OneFrameImageStreamCompleter(_processWindow());
+  }
+
+  Future<ImageInfo> _processWindow() async {
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+    await image.drawToCanvas(canvas, windowMin, windowMax);
+    final picture = recorder.endRecording();
+    final resImage = await picture.toImage(image.width, image.height);
+    return ImageInfo(image: resImage);
   }
 
   @override
   operator ==(Object other) {
-    return other is _Jpeg12ImageProvider && other.image == image;
+    return other is Jpeg12ImageProvider &&
+        other.image == image &&
+        other.windowMax == windowMax &&
+        other.windowMin == windowMin;
   }
 
   @override
@@ -185,9 +206,13 @@ class Jpeg12BitWidget extends StatefulWidget {
   final double? windowMax;
   final String? semanticLabel;
   final bool excludeFromSemantics;
-  final BoxFit fit;
-  final AlignmentGeometry alignment;
-  final Clip clipBehavior;
+  final double? width;
+  final double? height;
+  final BoxFit? fit;
+  final Alignment alignment;
+  final ImageRepeat repeat;
+  final Rect? centerSlice;
+  final bool matchTextDirection;
 
   const Jpeg12BitWidget({
     Key? key,
@@ -196,9 +221,13 @@ class Jpeg12BitWidget extends StatefulWidget {
     this.windowMax,
     this.semanticLabel,
     this.excludeFromSemantics = false,
-    this.fit = BoxFit.contain,
+    this.width,
+    this.height,
+    this.fit,
     this.alignment = Alignment.center,
-    this.clipBehavior = Clip.none,
+    this.repeat = ImageRepeat.noRepeat,
+    this.centerSlice,
+    this.matchTextDirection = false,
   }) : super(key: key);
 
   @override
@@ -206,16 +235,11 @@ class Jpeg12BitWidget extends StatefulWidget {
 }
 
 class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
-  late _Jpeg12ImageProvider _imageProvider;
-
-  void setImageProvider() {
-    final Jpeg12BitImage decoded = Jpeg12BitImage.decode(widget.input);
-    _imageProvider = _Jpeg12ImageProvider(decoded);
-  }
+  late Jpeg12BitImage decoded;
 
   @override
   void initState() {
-    setImageProvider();
+    decoded = Jpeg12BitImage.decode(widget.input);
     super.initState();
   }
 
@@ -223,7 +247,7 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   void didUpdateWidget(covariant Jpeg12BitWidget oldWidget) {
     if (oldWidget.input != widget.input) {
       setState(() {
-        setImageProvider();
+        decoded = Jpeg12BitImage.decode(widget.input);
       });
     }
     super.didUpdateWidget(oldWidget);
@@ -231,35 +255,27 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final double windowMax =
-        widget.windowMax ?? _imageProvider.image.maxVal.toDouble();
-    final double windowMin =
-        widget.windowMin ?? _imageProvider.image.minVal.toDouble();
-    final colorFilter = Jpeg12BitImage._filterForWindow(windowMin, windowMax);
-    final origWidth = _imageProvider.image.width.toDouble();
-    final origHeight = _imageProvider.image.height.toDouble();
-    final imageInOrigSize = ColorFiltered(
-      colorFilter: colorFilter,
-      child: Image(
-        image: _imageProvider,
-        // Setting filterQuality to none here is important.
-        // The color values are not actually correct yet before applying the
-        // [ColorFilter.matrix].
-        filterQuality: ui.FilterQuality.none,
-        // Set the image size to be exactly that of underlying image.
-        // The scaling is done _outside_ using [FittedBox] so that the
-        // colorFilter doesn't break.
-        width: origWidth,
-        height: origHeight,
-        semanticLabel: widget.semanticLabel,
-        excludeFromSemantics: widget.excludeFromSemantics,
+    final double windowMax = widget.windowMax ?? decoded.maxVal.toDouble();
+    final double windowMin = widget.windowMin ?? decoded.minVal.toDouble();
+    return Image(
+      image: Jpeg12ImageProvider(
+        image: decoded,
+        windowMin: windowMin,
+        windowMax: windowMax,
       ),
-    );
-    return FittedBox(
-      child: imageInOrigSize,
+      // Set this here so that scrolling through different windowing values
+      // doesn't cut out the display.
+      gaplessPlayback: true,
+      filterQuality: ui.FilterQuality.none,
+      semanticLabel: widget.semanticLabel,
+      excludeFromSemantics: widget.excludeFromSemantics,
+      width: widget.width,
+      height: widget.height,
       fit: widget.fit,
       alignment: widget.alignment,
-      clipBehavior: widget.clipBehavior,
+      repeat: widget.repeat,
+      centerSlice: widget.centerSlice,
+      matchTextDirection: widget.matchTextDirection,
     );
   }
 }
