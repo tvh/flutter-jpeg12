@@ -186,31 +186,42 @@ class Jpeg12ImageStreamCompleter extends ImageStreamCompleter {
   final Jpeg12BitImage image;
   double windowMin;
   double windowMax;
+  bool _processing = false;
+  bool _shouldProcess = false;
 
   Jpeg12ImageStreamCompleter({
     required this.image,
     required this.windowMin,
     required this.windowMax,
   }) {
+    _shouldProcess = true;
     _processWindow();
   }
 
   Future<void> _processWindow() async {
-    final recorder = ui.PictureRecorder();
-    final canvas = ui.Canvas(recorder);
-    await image.drawToCanvas(canvas, windowMin, windowMax);
-    final picture = recorder.endRecording();
-    final resImage = await picture.toImage(image.width, image.height);
-    setImage(ImageInfo(image: resImage));
+    _processing = true;
+    while (_shouldProcess) {
+      _shouldProcess = false;
+      final recorder = ui.PictureRecorder();
+      final canvas = ui.Canvas(recorder);
+      await image.drawToCanvas(canvas, windowMin, windowMax);
+      final picture = recorder.endRecording();
+      final resImage = await picture.toImage(image.width, image.height);
+      setImage(ImageInfo(image: resImage));
+    }
+    _processing = false;
   }
 
-  Future<void> updateWindow({
+  void updateWindow({
     required double windowMin,
     required double windowMax,
-  }) {
+  }) async {
     this.windowMin = windowMin;
     this.windowMax = windowMax;
-    return _processWindow();
+    _shouldProcess = true;
+    if (!_processing) {
+      _processWindow();
+    }
   }
 }
 
@@ -218,15 +229,25 @@ class Jpeg12BitWidget extends StatefulWidget {
   final Uint8List input;
   final double? windowMin;
   final double? windowMax;
+
+  // The following parameters are passes directly to the [Image] widget.
+  final Widget Function(BuildContext, Widget, int?, bool)? frameBuilder;
+  final Widget Function(BuildContext, Widget, ImageChunkEvent?)? loadingBuilder;
+  final Widget Function(BuildContext, Object, StackTrace?)? errorBuilder;
   final String? semanticLabel;
   final bool excludeFromSemantics;
   final double? width;
   final double? height;
+  final Color? color;
+  final Animation<double>? opacity;
+  final BlendMode? colorBlendMode;
   final BoxFit? fit;
   final Alignment alignment;
   final ImageRepeat repeat;
   final Rect? centerSlice;
   final bool matchTextDirection;
+  final bool gaplessPlayback;
+  final bool isAntiAlias;
   final FilterQuality filterQuality;
 
   const Jpeg12BitWidget({
@@ -234,16 +255,24 @@ class Jpeg12BitWidget extends StatefulWidget {
     required this.input,
     this.windowMin,
     this.windowMax,
+    this.frameBuilder,
+    this.loadingBuilder,
+    this.errorBuilder,
     this.semanticLabel,
     this.excludeFromSemantics = false,
     this.width,
     this.height,
+    this.color,
+    this.opacity,
+    this.colorBlendMode,
     this.fit,
     this.alignment = Alignment.center,
     this.repeat = ImageRepeat.noRepeat,
     this.centerSlice,
     this.matchTextDirection = false,
-    this.filterQuality = ui.FilterQuality.high,
+    this.gaplessPlayback = false,
+    this.isAntiAlias = false,
+    this.filterQuality = FilterQuality.high,
   }) : super(key: key);
 
   @override
@@ -293,19 +322,24 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   Widget build(BuildContext context) {
     return Image(
       image: Jpeg12ImageProvider(_currentImage),
-      // Set this here so that scrolling through different windowing values
-      // doesn't cut out the display.
-      gaplessPlayback: true,
-      filterQuality: widget.filterQuality,
+      frameBuilder: widget.frameBuilder,
+      loadingBuilder: widget.loadingBuilder,
+      errorBuilder: widget.errorBuilder,
       semanticLabel: widget.semanticLabel,
       excludeFromSemantics: widget.excludeFromSemantics,
       width: widget.width,
       height: widget.height,
+      color: widget.color,
+      opacity: widget.opacity,
+      colorBlendMode: widget.colorBlendMode,
       fit: widget.fit,
       alignment: widget.alignment,
       repeat: widget.repeat,
       centerSlice: widget.centerSlice,
       matchTextDirection: widget.matchTextDirection,
+      gaplessPlayback: widget.gaplessPlayback,
+      isAntiAlias: widget.isAntiAlias,
+      filterQuality: widget.filterQuality,
     );
   }
 }
