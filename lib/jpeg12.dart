@@ -159,15 +159,9 @@ class Jpeg12BitImage {
 }
 
 class Jpeg12ImageProvider extends ImageProvider<Jpeg12ImageProvider> {
-  final Jpeg12BitImage image;
-  final double windowMin;
-  final double windowMax;
+  final Jpeg12ImageStreamCompleter _image;
 
-  Jpeg12ImageProvider({
-    required this.image,
-    required this.windowMin,
-    required this.windowMax,
-  });
+  Jpeg12ImageProvider(this._image);
 
   @override
   Future<Jpeg12ImageProvider> obtainKey(ImageConfiguration configuration) {
@@ -176,28 +170,48 @@ class Jpeg12ImageProvider extends ImageProvider<Jpeg12ImageProvider> {
 
   @override
   ImageStreamCompleter load(Jpeg12ImageProvider key, DecoderCallback decode) {
-    return OneFrameImageStreamCompleter(_processWindow());
+    return _image;
   }
 
-  Future<ImageInfo> _processWindow() async {
+  @override
+  operator ==(Object other) {
+    return other is Jpeg12ImageProvider && other._image == _image;
+  }
+
+  @override
+  int get hashCode => _image.hashCode;
+}
+
+class Jpeg12ImageStreamCompleter extends ImageStreamCompleter {
+  final Jpeg12BitImage image;
+  double windowMin;
+  double windowMax;
+
+  Jpeg12ImageStreamCompleter({
+    required this.image,
+    required this.windowMin,
+    required this.windowMax,
+  }) {
+    _processWindow();
+  }
+
+  Future<void> _processWindow() async {
     final recorder = ui.PictureRecorder();
     final canvas = ui.Canvas(recorder);
     await image.drawToCanvas(canvas, windowMin, windowMax);
     final picture = recorder.endRecording();
     final resImage = await picture.toImage(image.width, image.height);
-    return ImageInfo(image: resImage);
+    setImage(ImageInfo(image: resImage));
   }
 
-  @override
-  operator ==(Object other) {
-    return other is Jpeg12ImageProvider &&
-        other.image == image &&
-        other.windowMax == windowMax &&
-        other.windowMin == windowMin;
+  Future<void> updateWindow({
+    required double windowMin,
+    required double windowMax,
+  }) {
+    this.windowMin = windowMin;
+    this.windowMax = windowMax;
+    return _processWindow();
   }
-
-  @override
-  int get hashCode => image.hashCode;
 }
 
 class Jpeg12BitWidget extends StatefulWidget {
@@ -237,11 +251,22 @@ class Jpeg12BitWidget extends StatefulWidget {
 }
 
 class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
-  late Jpeg12BitImage decoded;
+  late Jpeg12ImageStreamCompleter _currentImage;
+
+  void _replaceCurrentImage() {
+    final decoded = Jpeg12BitImage.decode(widget.input);
+    final double windowMax = widget.windowMax ?? decoded.maxVal.toDouble();
+    final double windowMin = widget.windowMin ?? decoded.minVal.toDouble();
+    _currentImage = Jpeg12ImageStreamCompleter(
+      image: decoded,
+      windowMin: windowMin,
+      windowMax: windowMax,
+    );
+  }
 
   @override
   void initState() {
-    decoded = Jpeg12BitImage.decode(widget.input);
+    _replaceCurrentImage();
     super.initState();
   }
 
@@ -249,22 +274,25 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   void didUpdateWidget(covariant Jpeg12BitWidget oldWidget) {
     if (oldWidget.input != widget.input) {
       setState(() {
-        decoded = Jpeg12BitImage.decode(widget.input);
+        _replaceCurrentImage();
       });
+    } else {
+      final double windowMax =
+          widget.windowMax ?? _currentImage.image.maxVal.toDouble();
+      final double windowMin =
+          widget.windowMin ?? _currentImage.image.minVal.toDouble();
+      if (windowMin != _currentImage.windowMin ||
+          windowMax != _currentImage.windowMax) {
+        _currentImage.updateWindow(windowMin: windowMin, windowMax: windowMax);
+      }
     }
     super.didUpdateWidget(oldWidget);
   }
 
   @override
   Widget build(BuildContext context) {
-    final double windowMax = widget.windowMax ?? decoded.maxVal.toDouble();
-    final double windowMin = widget.windowMin ?? decoded.minVal.toDouble();
     return Image(
-      image: Jpeg12ImageProvider(
-        image: decoded,
-        windowMin: windowMin,
-        windowMax: windowMax,
-      ),
+      image: Jpeg12ImageProvider(_currentImage),
       // Set this here so that scrolling through different windowing values
       // doesn't cut out the display.
       gaplessPlayback: true,
