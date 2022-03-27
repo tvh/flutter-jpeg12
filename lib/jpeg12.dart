@@ -7,13 +7,12 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:jpeg12/generated_bindings.dart';
 
-const NUM_DECODE_ROWS = 16;
-const NUM_BITS = 12;
+const _NUM_DECODE_ROWS = 16;
+const _NUM_BITS = 12;
 
 final Jpeg12Native _lib = Jpeg12Native(Platform.isAndroid
     ? DynamicLibrary.open('liblibjpeg.so')
@@ -51,7 +50,7 @@ class Jpeg12BitImage {
           cinfo, JPEG12_LIB_VERSION, sizeOf<jpeg12_decompress_struct>());
       cinfo.ref.err = _lib.jpeg12_std_error(jerr);
 
-      row_pointer = calloc.allocate(NUM_DECODE_ROWS * sizeOf<JSAMPROW>());
+      row_pointer = calloc.allocate(_NUM_DECODE_ROWS * sizeOf<JSAMPROW>());
       inbuffer = calloc.allocate(input.length);
       inbuffer.asTypedList(input.length).setAll(0, input);
 
@@ -62,7 +61,7 @@ class Jpeg12BitImage {
         throw Exception("Error reading JPEG header");
       }
 
-      if (cinfo.ref.data_precision != NUM_BITS) {
+      if (cinfo.ref.data_precision != _NUM_BITS) {
         throw Exception("JPEG not using 12 bit precision!");
       }
 
@@ -75,8 +74,8 @@ class Jpeg12BitImage {
       int numPixels = cinfo.ref.output_width * cinfo.ref.output_height;
       final res = Uint16List(numPixels);
       final rowsize = cinfo.ref.output_width * sizeOf<JSAMPLE>();
-      rowptr = calloc.allocate(rowsize * NUM_DECODE_ROWS);
-      for (int i = 0; i < NUM_DECODE_ROWS; i++) {
+      rowptr = calloc.allocate(rowsize * _NUM_DECODE_ROWS);
+      for (int i = 0; i < _NUM_DECODE_ROWS; i++) {
         row_pointer[i] = Pointer.fromAddress(rowptr.address + (i * rowsize));
       }
       int minVal = 4095;
@@ -84,7 +83,7 @@ class Jpeg12BitImage {
       while (cinfo.ref.output_scanline < cinfo.ref.image_height) {
         int currentRow = cinfo.ref.output_scanline;
         int read =
-            _lib.jpeg12_read_scanlines(cinfo, row_pointer, NUM_DECODE_ROWS);
+            _lib.jpeg12_read_scanlines(cinfo, row_pointer, _NUM_DECODE_ROWS);
         if (read == 0) {
           throw Exception("Error decoding JPEG");
         }
@@ -123,11 +122,16 @@ class _Jpeg12Painter extends CustomPainter {
   /// the [ui.ColorFilter] from [_filterForWindow] _without_ scaling (or with
   /// [FilterQuality.none]).
   final ui.Image? imageData;
-
   final double windowMin;
   final double windowMax;
+  final ui.FilterQuality filterQuality;
 
-  _Jpeg12Painter(this.imageData, this.windowMin, this.windowMax);
+  _Jpeg12Painter(
+    this.imageData,
+    this.windowMin,
+    this.windowMax,
+    this.filterQuality,
+  );
 
   /// Use this filter to get the final image.
   static ui.ColorFilter _filterForWindow(double windowMin, double windowMax) {
@@ -173,7 +177,7 @@ class _Jpeg12Painter extends CustomPainter {
     if (imageData != null) {
       final paint = Paint()
         ..colorFilter = _filterForWindow(windowMin, windowMax)
-        ..filterQuality = ui.FilterQuality.high;
+        ..filterQuality = filterQuality;
       canvas.scale(
         size.width / imageData!.width,
         size.height / imageData!.height,
@@ -187,7 +191,8 @@ class _Jpeg12Painter extends CustomPainter {
     return oldDelegate is! _Jpeg12Painter ||
         oldDelegate.imageData != imageData ||
         oldDelegate.windowMin != windowMin ||
-        oldDelegate.windowMax != windowMax;
+        oldDelegate.windowMax != windowMax ||
+        oldDelegate.filterQuality != filterQuality;
   }
 }
 
@@ -195,12 +200,14 @@ class Jpeg12BitWidget extends StatefulWidget {
   final Uint8List input;
   final double? windowMin;
   final double? windowMax;
+  final ui.FilterQuality filterQuality;
 
   const Jpeg12BitWidget({
     Key? key,
     required this.input,
     this.windowMin,
     this.windowMax,
+    this.filterQuality = ui.FilterQuality.medium,
   }) : super(key: key);
 
   @override
@@ -239,15 +246,23 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: _decoded.width / _decoded.height,
-      child: CustomPaint(
+    return LayoutBuilder(builder: (context, constraints) {
+      final baseSize = Size(
+        _decoded.width.toDouble(),
+        _decoded.height.toDouble(),
+      );
+      final size = constraints.constrainSizeAndAttemptToPreserveAspectRatio(
+        baseSize,
+      );
+      return CustomPaint(
+        size: size,
         painter: _Jpeg12Painter(
           _currentImage,
           widget.windowMin ?? _decoded.minVal.toDouble(),
           widget.windowMax ?? _decoded.maxVal.toDouble(),
+          widget.filterQuality,
         ),
-      ),
-    );
+      );
+    });
   }
 }

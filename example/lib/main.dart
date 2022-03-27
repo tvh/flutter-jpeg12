@@ -20,8 +20,8 @@ class _MyAppState extends State<MyApp> {
 
   void _doLoad() async {
     final bytes = await rootBundle.load('MR-MONO2-12-shoulder_reference.jpg');
-    this.setState(() {
-      this.img = bytes.buffer.asUint8List();
+    setState(() {
+      img = bytes.buffer.asUint8List();
     });
   }
 
