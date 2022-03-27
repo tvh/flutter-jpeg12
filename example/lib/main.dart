@@ -42,11 +42,12 @@ class _MyAppState extends State<MyApp> {
         body: Column(
           children: [
             if (img != null)
-              Jpeg12BitWidget(
-                input: img!,
-                windowMin: windowMin,
-                windowMax: windowMax,
-                fit: BoxFit.fill,
+              FittedBox(
+                child: Jpeg12BitWidget(
+                  input: img!,
+                  windowMin: windowMin,
+                  windowMax: windowMax,
+                ),
               ),
             RangeSlider(
               values: RangeValues(windowMin.toDouble(), windowMax.toDouble()),

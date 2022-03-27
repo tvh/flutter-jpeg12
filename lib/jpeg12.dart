@@ -196,18 +196,11 @@ class Jpeg12BitWidget extends StatefulWidget {
   final double? windowMin;
   final double? windowMax;
 
-  final double? width;
-  final double? height;
-  final BoxFit fit;
-
   const Jpeg12BitWidget({
     Key? key,
     required this.input,
     this.windowMin,
     this.windowMax,
-    this.width,
-    this.height,
-    this.fit = BoxFit.contain,
   }) : super(key: key);
 
   @override
@@ -246,19 +239,12 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: widget.width,
-      height: widget.height,
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: CustomPaint(
-          size: ui.Size(_decoded.width.toDouble(), _decoded.height.toDouble()),
-          painter: _Jpeg12Painter(
-            _currentImage,
-            widget.windowMin ?? _decoded.minVal.toDouble(),
-            widget.windowMax ?? _decoded.maxVal.toDouble(),
-          ),
-        ),
+    return CustomPaint(
+      size: ui.Size(_decoded.width.toDouble(), _decoded.height.toDouble()),
+      painter: _Jpeg12Painter(
+        _currentImage,
+        widget.windowMin ?? _decoded.minVal.toDouble(),
+        widget.windowMax ?? _decoded.maxVal.toDouble(),
       ),
     );
   }
