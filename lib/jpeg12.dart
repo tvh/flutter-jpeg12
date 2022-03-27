@@ -23,10 +23,7 @@ class Jpeg12BitImage {
   final int height;
   final int width;
 
-  /// The buffer as as [ui.Image]. This image needs to be combined with
-  /// the [ui.ColorFilter] from [_filterForWindow] _without_ scaling (or with
-  /// [FilterQuality.none]).
-  final Future<ui.Image> _data;
+  final Uint16List _pixelData;
 
   final int minVal;
   final int maxVal;
@@ -34,10 +31,10 @@ class Jpeg12BitImage {
   Jpeg12BitImage._({
     required this.height,
     required this.width,
-    required Future<ui.Image> data,
+    required Uint16List data,
     required this.minVal,
     required this.maxVal,
-  }) : _data = data;
+  }) : _pixelData = data;
 
   static Jpeg12BitImage decode(Uint8List input) {
     Pointer<jpeg12_decompress_struct> cinfo = nullptr;
@@ -76,7 +73,7 @@ class Jpeg12BitImage {
       _lib.jpeg12_start_decompress(cinfo);
 
       int numPixels = cinfo.ref.output_width * cinfo.ref.output_height;
-      final res = Uint32List(numPixels);
+      final res = Uint16List(numPixels);
       final rowsize = cinfo.ref.output_width * sizeOf<JSAMPLE>();
       rowptr = calloc.allocate(rowsize * NUM_DECODE_ROWS);
       for (int i = 0; i < NUM_DECODE_ROWS; i++) {
@@ -97,26 +94,16 @@ class Jpeg12BitImage {
             int x = row_pointer[i][j];
             minVal = min(minVal, x);
             maxVal = max(maxVal, x);
-            res[p] = Color.fromRGBO(0, x >> 8, x, 1).value;
+            res[p] = x;
           }
         }
       }
 
       _lib.jpeg12_finish_decompress(cinfo);
-      final imageCompleter = Completer<ui.Image>();
-      ui.decodeImageFromPixels(
-        res.buffer.asUint8List(),
-        cinfo.ref.image_width,
-        cinfo.ref.image_height,
-        ui.PixelFormat.bgra8888, // RGBA in Big-endian
-        (ui.Image img) {
-          imageCompleter.complete(img);
-        },
-      );
       return Jpeg12BitImage._(
         height: cinfo.ref.image_height,
         width: cinfo.ref.image_width,
-        data: imageCompleter.future,
+        data: res,
         minVal: minVal,
         maxVal: maxVal,
       );
@@ -129,6 +116,18 @@ class Jpeg12BitImage {
       calloc.free(rowptr);
     }
   }
+}
+
+class _Jpeg12Painter extends CustomPainter {
+  /// The buffer as as [ui.Image]. This image needs to be combined with
+  /// the [ui.ColorFilter] from [_filterForWindow] _without_ scaling (or with
+  /// [FilterQuality.none]).
+  final ui.Image? imageData;
+
+  final double windowMin;
+  final double windowMax;
+
+  _Jpeg12Painter(this.imageData, this.windowMin, this.windowMax);
 
   /// Use this filter to get the final image.
   static ui.ColorFilter _filterForWindow(double windowMin, double windowMax) {
@@ -149,79 +148,46 @@ class Jpeg12BitImage {
     ]);
   }
 
-  Future<void> drawToCanvas(
-      ui.Canvas canvas, double windowMin, double windowMax) async {
-    final paint = Paint()
-      ..colorFilter = Jpeg12BitImage._filterForWindow(windowMin, windowMax)
-      ..filterQuality = ui.FilterQuality.none;
-    canvas.drawImage(await _data, Offset.zero, paint);
-  }
-}
-
-class Jpeg12ImageProvider extends ImageProvider<Jpeg12ImageProvider> {
-  final Jpeg12ImageStreamCompleter _image;
-
-  Jpeg12ImageProvider(this._image);
-
-  @override
-  Future<Jpeg12ImageProvider> obtainKey(ImageConfiguration configuration) {
-    return SynchronousFuture<Jpeg12ImageProvider>(this);
-  }
-
-  @override
-  ImageStreamCompleter load(Jpeg12ImageProvider key, DecoderCallback decode) {
-    return _image;
-  }
-
-  @override
-  operator ==(Object other) {
-    return other is Jpeg12ImageProvider && other._image == _image;
-  }
-
-  @override
-  int get hashCode => _image.hashCode;
-}
-
-class Jpeg12ImageStreamCompleter extends ImageStreamCompleter {
-  final Jpeg12BitImage image;
-  double windowMin;
-  double windowMax;
-  bool _processing = false;
-  bool _shouldProcess = false;
-
-  Jpeg12ImageStreamCompleter({
-    required this.image,
-    required this.windowMin,
-    required this.windowMax,
-  }) {
-    _shouldProcess = true;
-    _processWindow();
-  }
-
-  Future<void> _processWindow() async {
-    _processing = true;
-    while (_shouldProcess) {
-      _shouldProcess = false;
-      final recorder = ui.PictureRecorder();
-      final canvas = ui.Canvas(recorder);
-      await image.drawToCanvas(canvas, windowMin, windowMax);
-      final picture = recorder.endRecording();
-      final resImage = await picture.toImage(image.width, image.height);
-      setImage(ImageInfo(image: resImage));
+  /// Use this function to extract the image data needed for this widget.
+  static Future<ui.Image> _imageDataFromJpeg12(Jpeg12BitImage image) {
+    final imageCompleter = Completer<ui.Image>();
+    final inputBuffer = Uint32List(image._pixelData.length);
+    for (int i = 0; i < image._pixelData.length; i++) {
+      final x = image._pixelData[i];
+      inputBuffer[i] = Color.fromRGBO(0, x >> 8, x, 1).value;
     }
-    _processing = false;
+    ui.decodeImageFromPixels(
+      inputBuffer.buffer.asUint8List(),
+      image.width,
+      image.height,
+      ui.PixelFormat.bgra8888, // RGBA in Big-endian
+      (ui.Image img) {
+        imageCompleter.complete(img);
+      },
+    );
+    return imageCompleter.future;
   }
 
-  void updateWindow({
-    required double windowMin,
-    required double windowMax,
-  }) async {
-    this.windowMin = windowMin;
-    this.windowMax = windowMax;
-    _shouldProcess = true;
-    if (!_processing) {
-      _processWindow();
+  @override
+  void paint(ui.Canvas canvas, ui.Size size) {
+    if (imageData != null) {
+      final paint = Paint()
+        ..colorFilter = _filterForWindow(windowMin, windowMax)
+        ..filterQuality = ui.FilterQuality.high;
+      canvas.drawImage(imageData!, Offset.zero, paint);
+      canvas.scale(
+        size.width / imageData!.width,
+        size.height / imageData!.height,
+      );
     }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return oldDelegate is! _Jpeg12Painter ||
+        oldDelegate.imageData != imageData ||
+        oldDelegate.windowMin != windowMin ||
+        oldDelegate.windowMax != windowMax;
   }
 }
 
@@ -230,49 +196,18 @@ class Jpeg12BitWidget extends StatefulWidget {
   final double? windowMin;
   final double? windowMax;
 
-  // The following parameters are passes directly to the [Image] widget.
-  final Widget Function(BuildContext, Widget, int?, bool)? frameBuilder;
-  final Widget Function(BuildContext, Widget, ImageChunkEvent?)? loadingBuilder;
-  final Widget Function(BuildContext, Object, StackTrace?)? errorBuilder;
-  final String? semanticLabel;
-  final bool excludeFromSemantics;
   final double? width;
   final double? height;
-  final Color? color;
-  final Animation<double>? opacity;
-  final BlendMode? colorBlendMode;
-  final BoxFit? fit;
-  final Alignment alignment;
-  final ImageRepeat repeat;
-  final Rect? centerSlice;
-  final bool matchTextDirection;
-  final bool gaplessPlayback;
-  final bool isAntiAlias;
-  final FilterQuality filterQuality;
+  final BoxFit fit;
 
   const Jpeg12BitWidget({
     Key? key,
     required this.input,
     this.windowMin,
     this.windowMax,
-    this.frameBuilder,
-    this.loadingBuilder,
-    this.errorBuilder,
-    this.semanticLabel,
-    this.excludeFromSemantics = false,
     this.width,
     this.height,
-    this.color,
-    this.opacity,
-    this.colorBlendMode,
-    this.fit,
-    this.alignment = Alignment.center,
-    this.repeat = ImageRepeat.noRepeat,
-    this.centerSlice,
-    this.matchTextDirection = false,
-    this.gaplessPlayback = false,
-    this.isAntiAlias = false,
-    this.filterQuality = FilterQuality.high,
+    this.fit = BoxFit.contain,
   }) : super(key: key);
 
   @override
@@ -280,17 +215,17 @@ class Jpeg12BitWidget extends StatefulWidget {
 }
 
 class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
-  late Jpeg12ImageStreamCompleter _currentImage;
+  late Jpeg12BitImage _decoded;
+  ui.Image? _currentImage;
 
   void _replaceCurrentImage() {
-    final decoded = Jpeg12BitImage.decode(widget.input);
-    final double windowMax = widget.windowMax ?? decoded.maxVal.toDouble();
-    final double windowMin = widget.windowMin ?? decoded.minVal.toDouble();
-    _currentImage = Jpeg12ImageStreamCompleter(
-      image: decoded,
-      windowMin: windowMin,
-      windowMax: windowMax,
-    );
+    _decoded = Jpeg12BitImage.decode(widget.input);
+    _currentImage = null;
+    _Jpeg12Painter._imageDataFromJpeg12(_decoded).then((imageData) {
+      setState(() {
+        _currentImage = imageData;
+      });
+    });
   }
 
   @override
@@ -305,41 +240,26 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
       setState(() {
         _replaceCurrentImage();
       });
-    } else {
-      final double windowMax =
-          widget.windowMax ?? _currentImage.image.maxVal.toDouble();
-      final double windowMin =
-          widget.windowMin ?? _currentImage.image.minVal.toDouble();
-      if (windowMin != _currentImage.windowMin ||
-          windowMax != _currentImage.windowMax) {
-        _currentImage.updateWindow(windowMin: windowMin, windowMax: windowMax);
-      }
     }
     super.didUpdateWidget(oldWidget);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Image(
-      image: Jpeg12ImageProvider(_currentImage),
-      frameBuilder: widget.frameBuilder,
-      loadingBuilder: widget.loadingBuilder,
-      errorBuilder: widget.errorBuilder,
-      semanticLabel: widget.semanticLabel,
-      excludeFromSemantics: widget.excludeFromSemantics,
+    return SizedBox(
       width: widget.width,
       height: widget.height,
-      color: widget.color,
-      opacity: widget.opacity,
-      colorBlendMode: widget.colorBlendMode,
-      fit: widget.fit,
-      alignment: widget.alignment,
-      repeat: widget.repeat,
-      centerSlice: widget.centerSlice,
-      matchTextDirection: widget.matchTextDirection,
-      gaplessPlayback: widget.gaplessPlayback,
-      isAntiAlias: widget.isAntiAlias,
-      filterQuality: widget.filterQuality,
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: CustomPaint(
+          size: ui.Size(_decoded.width.toDouble(), _decoded.height.toDouble()),
+          painter: _Jpeg12Painter(
+            _currentImage,
+            widget.windowMin ?? _decoded.minVal.toDouble(),
+            widget.windowMax ?? _decoded.maxVal.toDouble(),
+          ),
+        ),
+      ),
     );
   }
 }

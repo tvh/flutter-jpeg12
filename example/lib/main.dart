@@ -19,8 +19,7 @@ class _MyAppState extends State<MyApp> {
   double windowMax = 4095;
 
   void _doLoad() async {
-    final bytes =
-        await rootBundle.load('MR-MONO2-12-shoulder_reference_small.jpg');
+    final bytes = await rootBundle.load('MR-MONO2-12-shoulder_reference.jpg');
     this.setState(() {
       this.img = bytes.buffer.asUint8List();
     });
