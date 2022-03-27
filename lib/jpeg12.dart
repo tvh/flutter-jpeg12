@@ -174,11 +174,11 @@ class _Jpeg12Painter extends CustomPainter {
       final paint = Paint()
         ..colorFilter = _filterForWindow(windowMin, windowMax)
         ..filterQuality = ui.FilterQuality.high;
-      canvas.drawImage(imageData!, Offset.zero, paint);
       canvas.scale(
         size.width / imageData!.width,
         size.height / imageData!.height,
       );
+      canvas.drawImage(imageData!, Offset.zero, paint);
     }
   }
 
@@ -239,12 +239,14 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      size: ui.Size(_decoded.width.toDouble(), _decoded.height.toDouble()),
-      painter: _Jpeg12Painter(
-        _currentImage,
-        widget.windowMin ?? _decoded.minVal.toDouble(),
-        widget.windowMax ?? _decoded.maxVal.toDouble(),
+    return AspectRatio(
+      aspectRatio: _decoded.width / _decoded.height,
+      child: CustomPaint(
+        painter: _Jpeg12Painter(
+          _currentImage,
+          widget.windowMin ?? _decoded.minVal.toDouble(),
+          widget.windowMax ?? _decoded.maxVal.toDouble(),
+        ),
       ),
     );
   }
