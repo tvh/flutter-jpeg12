@@ -119,8 +119,7 @@ class Jpeg12BitImage {
 
 class _Jpeg12Painter extends CustomPainter {
   /// The buffer as as [ui.Image]. This image needs to be combined with
-  /// the [ui.ColorFilter] from [_filterForWindow] _without_ scaling (or with
-  /// [FilterQuality.none]).
+  /// the [ui.ColorFilter] from [_filterForWindow].
   final ui.Image? imageData;
   final double windowMin;
   final double windowMax;
