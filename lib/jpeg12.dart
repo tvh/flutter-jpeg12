@@ -246,7 +246,7 @@ class _Jpeg12BitWidgetState extends State<Jpeg12BitWidget> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      final baseSize = Size(
+      final baseSize = ui.Size(
         _decoded.width.toDouble(),
         _decoded.height.toDouble(),
       );
