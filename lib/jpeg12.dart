@@ -40,7 +40,7 @@ class Jpeg12BitImage {
     Pointer<jpeg12_error_mgr> jerr = nullptr;
     Pointer<JSAMPROW> row_pointer = nullptr;
     JSAMPROW rowptr = nullptr;
-    Pointer<Uint8> inbuffer = nullptr;
+    Pointer<UnsignedChar> inbuffer = nullptr;
 
     try {
       cinfo = calloc();
@@ -52,7 +52,7 @@ class Jpeg12BitImage {
 
       row_pointer = calloc.allocate(_NUM_DECODE_ROWS * sizeOf<JSAMPROW>());
       inbuffer = calloc.allocate(input.length);
-      inbuffer.asTypedList(input.length).setAll(0, input);
+      inbuffer.cast<Uint8>().asTypedList(input.length).setAll(0, input);
 
       // TODO: Error function
 
