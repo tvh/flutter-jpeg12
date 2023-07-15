@@ -1,5 +1,5 @@
 name: jpeg12
-description: Load and display 12-bit JPEGs with support fow windowing
+description: Load and display 12-bit JPEGs with support for windowing
 version: 0.1.0
 
 environment:
